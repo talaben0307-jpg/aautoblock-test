@@ -7,6 +7,13 @@ local LocalPlayer = Players.LocalPlayer
 local isAutoBlockEnabled = false
 local blockDistance = 20
 local isBlocking = false
+local lastClickTime = 0
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        lastClickTime = tick()
+    end
+end)
 
 local blockService = ReplicatedStorage:WaitForChild("Knit", 10)
 if blockService then
@@ -212,6 +219,7 @@ local function setupRemoteListener(remote)
 
     remote.OnClientEvent:Connect(function(...)
         if not isAutoBlockEnabled or isBlocking then return end
+        if tick() - lastClickTime < 0.3 then return end
 
         local myChar = LocalPlayer.Character
         local myRoot = getRootPart(myChar)
@@ -220,65 +228,43 @@ local function setupRemoteListener(remote)
         if not myRoot or not myHum or myHum.Health <= 0 then return end
 
         local args = {...}
+        local actor = nil
         
-        -- === TÌM CHỦ THỂ GÂY RA SỰ KIỆN ===
-        local primaryActor = nil
         for _, arg in ipairs(args) do
             if typeof(arg) == "Instance" then
                 local model = arg:IsA("Model") and arg or arg:FindFirstAncestorOfClass("Model")
                 if model and model:FindFirstChildOfClass("Humanoid") then
-                    primaryActor = model
-                    break -- Lấy đối tượng đầu tiên tìm thấy
+                    actor = model
+                    break
                 end
             end
         end
 
-        -- Nếu sự kiện này DO CHÍNH MÌNH GÂY RA (mình vừa ra đòn), thì BỎ QUA KHÔNG BLOCK
-        if primaryActor == myChar or (primaryActor and primaryActor.Name == LocalPlayer.Name) then
+        if not actor or actor == myChar or actor.Name == LocalPlayer.Name then
             return
         end
 
-        local closestTarget = nil
-        local shortestDistance = blockDistance
-
-        for _, arg in ipairs(args) do
-            if typeof(arg) == "Instance" then
-                local model = arg:IsA("Model") and arg or arg:FindFirstAncestorOfClass("Model")
-                
-                -- Ngăn chặn Block chính mình
-                if model and model ~= myChar and model.Name ~= LocalPlayer.Name then
-                    local hum = model:FindFirstChildOfClass("Humanoid")
-                    local root = getRootPart(model)
+        local hum = actor:FindFirstChildOfClass("Humanoid")
+        local root = getRootPart(actor)
                     
-                    -- Phải có Humanoid và đang sống
-                    if hum and root and hum.Health > 0 then
+        if hum and root and hum.Health > 0 then
+            local state = hum:GetState()
+            local isRagdoll = hum.PlatformStand or 
+                              hum.Sit or 
+                              state == Enum.HumanoidStateType.Physics or 
+                              state == Enum.HumanoidStateType.Dead or 
+                              state == Enum.HumanoidStateType.Ragdoll or
+                              state == Enum.HumanoidStateType.FallingDown
                         
-                        -- Lọc bỏ các trạng thái Ragdoll / Chết / Ngã
-                        local state = hum:GetState()
-                        local isRagdoll = hum.PlatformStand or 
-                                          hum.Sit or 
-                                          state == Enum.HumanoidStateType.Physics or 
-                                          state == Enum.HumanoidStateType.Dead or 
-                                          state == Enum.HumanoidStateType.Ragdoll or
-                                          state == Enum.HumanoidStateType.FallingDown
-                        
-                        if not isRagdoll then
-                            local dist = (myRoot.Position - root.Position).Magnitude
-                            if dist <= shortestDistance then
-                                shortestDistance = dist
-                                closestTarget = root
-                            end
-                        end
-                    end
+            if not isRagdoll then
+                local dist = (myRoot.Position - root.Position).Magnitude
+                if dist <= blockDistance then
+                    isBlocking = true
+                    lookAtTarget(root)
+                    triggerBlock()
+                    task.delay(0.4, function() isBlocking = false end)
                 end
             end
-        end
-
-        if closestTarget then
-            isBlocking = true
-            lookAtTarget(closestTarget)
-            triggerBlock()
-            task.delay(0.4, function() isBlocking = false end)
         end
     end)
 end
