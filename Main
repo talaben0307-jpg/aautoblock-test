@@ -1,4 +1,3 @@
--- [[ AUTO BLOCK SCRIPT - UPGRADED & CLEANED ]] --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
@@ -6,12 +5,10 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- Variables
 local isAutoBlockEnabled = false
 local blockDistance = 20
 local isBlocking = false
 
--- Locate Remotes Safely (Increased Timeout for slow loading)
 local blockService = ReplicatedStorage:WaitForChild("Knit", 10)
 if blockService then
     blockService = blockService:WaitForChild("Knit", 10)
@@ -29,7 +26,6 @@ end
 local activatedRemote = blockService and blockService:FindFirstChild("Activated")
 local deactivatedRemote = blockService and blockService:FindFirstChild("Deactivated")
 
--- [[ UI CONSTRUCTION ]] --
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoBlock_ModernUI"
 ScreenGui.ResetOnSpawn = false
@@ -57,7 +53,6 @@ TopBar.TextXAlignment = Enum.TextXAlignment.Left
 TopBar.Parent = MainFrame
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
 
--- Fix TopBar bottom corners to blend with MainFrame
 local TopBarHider = Instance.new("Frame")
 TopBarHider.Size = UDim2.new(1, 0, 0, 10)
 TopBarHider.Position = UDim2.new(0, 0, 1, -10)
@@ -96,7 +91,6 @@ DistanceLabel.Font = Enum.Font.Gotham
 DistanceLabel.TextSize = 12
 DistanceLabel.Parent = MainFrame
 
--- Slider
 local SliderBg = Instance.new("Frame")
 SliderBg.Size = UDim2.new(0.85, 0, 0, 8)
 SliderBg.Position = UDim2.new(0.075, 0, 0.85, 0)
@@ -110,7 +104,6 @@ SliderFill.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
 SliderFill.Parent = SliderBg
 Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 4)
 
--- [[ UI LOGIC ]] --
 ToggleBtn.MouseButton1Click:Connect(function()
     isAutoBlockEnabled = not isAutoBlockEnabled
     if isAutoBlockEnabled then
@@ -149,7 +142,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Make GUI Draggable
 local draggingUI = false
 local dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
@@ -171,7 +163,6 @@ TopBar.InputEnded:Connect(function(input)
     end
 end)
 
--- [[ SCRIPT LOGIC ]] --
 local function getRootPart(char)
     return char and char:FindFirstChild("HumanoidRootPart")
 end
@@ -227,38 +218,40 @@ local function setupRemoteListener(remote)
         if not myRoot then return end
 
         local args = {...}
-        local targetRoot = nil
+        local closestTarget = nil
+        local shortestDistance = blockDistance
 
         for _, arg in ipairs(args) do
             if typeof(arg) == "Instance" then
                 local model = arg:IsA("Model") and arg or arg:FindFirstAncestorOfClass("Model")
                 if model and model ~= LocalPlayer.Character then
                     local root = getRootPart(model)
-                    if root and (myRoot.Position - root.Position).Magnitude <= blockDistance then
-                        targetRoot = root
-                        break
+                    if root then
+                        local dist = (myRoot.Position - root.Position).Magnitude
+                        if dist <= shortestDistance then
+                            shortestDistance = dist
+                            closestTarget = root
+                        end
                     end
                 end
             end
         end
 
-        if targetRoot then
+        if closestTarget then
             isBlocking = true
-            lookAtTarget(targetRoot)
+            lookAtTarget(closestTarget)
             triggerBlock()
             task.delay(0.4, function() isBlocking = false end)
         end
     end)
 end
 
--- Connect to all current and future remotes
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     setupRemoteListener(obj)
 end
 ReplicatedStorage.DescendantAdded:Connect(setupRemoteListener)
 
 if not activatedRemote then
-    StatusLabel.Text = "Game Updated: Patch Detected"
+    StatusLabel.Text = "Patch Detected"
     StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-    warn("[Auto Block] The game has changed its remote paths. The script may not work.")
 end
