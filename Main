@@ -220,6 +220,24 @@ local function setupRemoteListener(remote)
         if not myRoot or not myHum or myHum.Health <= 0 then return end
 
         local args = {...}
+        
+        -- === TÌM CHỦ THỂ GÂY RA SỰ KIỆN ===
+        local primaryActor = nil
+        for _, arg in ipairs(args) do
+            if typeof(arg) == "Instance" then
+                local model = arg:IsA("Model") and arg or arg:FindFirstAncestorOfClass("Model")
+                if model and model:FindFirstChildOfClass("Humanoid") then
+                    primaryActor = model
+                    break -- Lấy đối tượng đầu tiên tìm thấy
+                end
+            end
+        end
+
+        -- Nếu sự kiện này DO CHÍNH MÌNH GÂY RA (mình vừa ra đòn), thì BỎ QUA KHÔNG BLOCK
+        if primaryActor == myChar or (primaryActor and primaryActor.Name == LocalPlayer.Name) then
+            return
+        end
+
         local closestTarget = nil
         local shortestDistance = blockDistance
 
