@@ -2,7 +2,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local isAutoBlockEnabled = false
@@ -188,7 +187,7 @@ local function triggerBlock()
         return false
     end
 
-    local success, err = pcall(function() activatedRemote:FireServer() end)
+    local success = pcall(function() activatedRemote:FireServer() end)
     if success then
         StatusLabel.Text = "System: BLOCKED!"
         StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
@@ -214,8 +213,11 @@ local function setupRemoteListener(remote)
     remote.OnClientEvent:Connect(function(...)
         if not isAutoBlockEnabled or isBlocking then return end
 
-        local myRoot = getRootPart(LocalPlayer.Character)
-        if not myRoot then return end
+        local myChar = LocalPlayer.Character
+        local myRoot = getRootPart(myChar)
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+        if not myRoot or not myHum or myHum.Health <= 0 then return end
 
         local args = {...}
         local closestTarget = nil
@@ -224,13 +226,30 @@ local function setupRemoteListener(remote)
         for _, arg in ipairs(args) do
             if typeof(arg) == "Instance" then
                 local model = arg:IsA("Model") and arg or arg:FindFirstAncestorOfClass("Model")
-                if model and model ~= LocalPlayer.Character then
+                
+                -- Ngăn chặn Block chính mình
+                if model and model ~= myChar and model.Name ~= LocalPlayer.Name then
+                    local hum = model:FindFirstChildOfClass("Humanoid")
                     local root = getRootPart(model)
-                    if root then
-                        local dist = (myRoot.Position - root.Position).Magnitude
-                        if dist <= shortestDistance then
-                            shortestDistance = dist
-                            closestTarget = root
+                    
+                    -- Phải có Humanoid và đang sống
+                    if hum and root and hum.Health > 0 then
+                        
+                        -- Lọc bỏ các trạng thái Ragdoll / Chết / Ngã
+                        local state = hum:GetState()
+                        local isRagdoll = hum.PlatformStand or 
+                                          hum.Sit or 
+                                          state == Enum.HumanoidStateType.Physics or 
+                                          state == Enum.HumanoidStateType.Dead or 
+                                          state == Enum.HumanoidStateType.Ragdoll or
+                                          state == Enum.HumanoidStateType.FallingDown
+                        
+                        if not isRagdoll then
+                            local dist = (myRoot.Position - root.Position).Magnitude
+                            if dist <= shortestDistance then
+                                shortestDistance = dist
+                                closestTarget = root
+                            end
                         end
                     end
                 end
